@@ -1,0 +1,8 @@
+.DS_Store
+DerivedData/
+*.xcuserdata/
+xcuserdata/
+
+LocalCodes/*.csv
+LocalCodes/*.json
+Sources/PromoKit/Resources/*.csv
