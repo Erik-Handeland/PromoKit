@@ -8,6 +8,10 @@ struct AppStoreAppInfo: Equatable {
     let iconURL: URL?
 }
 
+extension AppStoreAppInfo: Identifiable {
+    var id: String { appStoreID }
+}
+
 enum AppStoreLookupService {
     static func appID(from input: String) -> String? {
         let trimmedInput = input.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -68,6 +72,43 @@ enum AppStoreLookupService {
             appStoreURL: appStoreURL,
             iconURL: URL(string: result.artworkURL512 ?? result.artworkURL100)
         )
+    }
+
+    static func search(for query: String, limit: Int = 8) async throws -> [AppStoreAppInfo] {
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedQuery.isEmpty else { return [] }
+
+        var components = URLComponents(string: "https://itunes.apple.com/search")
+        components?.queryItems = [
+            URLQueryItem(name: "term", value: trimmedQuery),
+            URLQueryItem(name: "media", value: "software"),
+            URLQueryItem(name: "entity", value: "software"),
+            URLQueryItem(name: "limit", value: "\(limit)"),
+            URLQueryItem(name: "country", value: Locale.current.region?.identifier.lowercased() ?? "us")
+        ]
+
+        guard let url = components?.url else {
+            throw AppStoreLookupError.invalidURL
+        }
+
+        let (data, response) = try await URLSession.shared.data(from: url)
+        guard let httpResponse = response as? HTTPURLResponse,
+              200..<300 ~= httpResponse.statusCode
+        else {
+            throw AppStoreLookupError.requestFailed
+        }
+
+        let searchResponse = try JSONDecoder().decode(AppStoreLookupResponse.self, from: data)
+        return searchResponse.results.compactMap { result in
+            guard let appStoreURL = URL(string: result.trackViewURL) else { return nil }
+            return AppStoreAppInfo(
+                appStoreID: String(result.trackID),
+                appName: result.trackName,
+                bundleID: result.bundleID,
+                appStoreURL: appStoreURL,
+                iconURL: URL(string: result.artworkURL512 ?? result.artworkURL100)
+            )
+        }
     }
 }
 

@@ -71,6 +71,58 @@ struct CodeEntry: Codable, Identifiable, Equatable {
     }
 }
 
+struct TrackedApp: Codable, Identifiable, Equatable {
+    let id: String
+    var name: String
+    var iconName: String
+    var iconURL: URL?
+    var appStoreID: String?
+    var appStoreURL: URL?
+    var bundleID: String?
+
+    init(
+        id: String? = nil,
+        name: String,
+        iconName: String = "DefaultAppIcon",
+        iconURL: URL? = nil,
+        appStoreID: String? = nil,
+        appStoreURL: URL? = nil,
+        bundleID: String? = nil
+    ) {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.id = id ?? appStoreID ?? bundleID ?? Self.slug(for: trimmedName)
+        self.name = trimmedName
+        self.iconName = iconName
+        self.iconURL = iconURL
+        self.appStoreID = appStoreID
+        self.appStoreURL = appStoreURL
+        self.bundleID = bundleID
+    }
+
+    init(product: OfferProduct) {
+        self.init(
+            name: product.appName,
+            iconName: product.appIconName,
+            iconURL: product.appIconURL,
+            appStoreID: product.appStoreID,
+            appStoreURL: product.appStoreURL,
+            bundleID: product.appBundleID
+        )
+    }
+
+    private static func slug(for value: String) -> String {
+        let allowedCharacters = CharacterSet.alphanumerics
+        return value
+            .lowercased()
+            .unicodeScalars
+            .map { allowedCharacters.contains($0) ? Character($0) : "-" }
+            .reduce(into: "") { $0.append($1) }
+            .split(separator: "-")
+            .joined(separator: "-")
+            .nilIfEmpty ?? UUID().uuidString.lowercased()
+    }
+}
+
 struct OfferProduct: Codable, Identifiable, Equatable {
     let id: String
     let appName: String
@@ -81,7 +133,7 @@ struct OfferProduct: Codable, Identifiable, Equatable {
     let appBundleID: String?
     let productName: String
     let productID: String
-    let productType: String
+    var productType: String
     let status: String
     var customName: String?
     var expiresAt: Date?
@@ -272,5 +324,11 @@ struct OfferProduct: Codable, Identifiable, Equatable {
         }
 
         return "\"\(value.replacingOccurrences(of: "\"", with: "\"\""))\""
+    }
+}
+
+private extension String {
+    var nilIfEmpty: String? {
+        isEmpty ? nil : self
     }
 }

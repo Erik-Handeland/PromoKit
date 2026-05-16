@@ -1,3 +1,14 @@
 {
-  "products": []
+  "products": [
+    {
+      "id": "demo-premium",
+      "appName": "Demo App",
+      "appIconName": "DefaultAppIcon",
+      "productName": "Demo Premium",
+      "productID": "com.example.demo.premium",
+      "productType": "IAP",
+      "status": "Approved",
+      "codesResourceName": "demo-premium-codes"
+    }
+  ]
 }

@@ -4,44 +4,56 @@ import UIKit
 
 struct ContentView: View {
     let store: CodeStore
-    @State private var activityRequest: ActivityRequest?
+    @State private var presentedSheet: PresentedSheet?
     @AppStorage("overviewMode") private var overviewModeRawValue = OverviewMode.shelf.rawValue
 
     private var appGroups: [AppProductGroup] {
-        Dictionary(grouping: store.products, by: \.appName)
-            .map { appName, products in
-                AppProductGroup(
-                    appName: appName,
-                    appIconName: products.first?.appIconName ?? "DefaultAppIcon",
-                    appIconURL: products.first?.appIconURL,
-                    products: products.sorted { $0.productName < $1.productName }
-                )
-            }
-            .sorted { $0.appName < $1.appName }
+        store.apps.map { app in
+            let products = store.products.filter { $0.appName == app.name }
+            return AppProductGroup(
+                app: app,
+                products: products.sorted { $0.productName < $1.productName }
+            )
+        }
+        .sorted { $0.app.name < $1.app.name }
+    }
+
+    private var appCount: Int {
+        store.apps.count
     }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 18) {
-                    DashboardCard(store: store, appCount: appGroups.count)
+                    DashboardCard(store: store, appCount: appCount)
 
-                    ViewModePicker(selection: overviewModeBinding)
-
-                    if overviewMode == .shelf {
-                        ForEach(appGroups) { appGroup in
-                            AppGroupView(
-                                appGroup: appGroup,
-                                shareProduct: shareNextCode,
-                                productDestination: productDetailView
-                            )
+                    if appGroups.isEmpty {
+                        AddAppRow {
+                            presentedSheet = .addApp
                         }
                     } else {
-                        CompactAppsView(
-                            appGroups: appGroups,
-                            shareProduct: shareNextCode,
-                            productDestination: productDetailView
-                        )
+                        if overviewMode == .shelf {
+                            ForEach(appGroups) { appGroup in
+                                AppGroupView(
+                                    appGroup: appGroup,
+                                    addOffer: { presentedSheet = .addOffer(appGroup.app) },
+                                    exportApp: exportApp,
+                                    deleteApp: deleteApp,
+                                    shareProduct: shareNextCode,
+                                    openProduct: { presentedSheet = .productDetail($0) }
+                                )
+                            }
+                        } else {
+                            CompactAppsView(
+                                appGroups: appGroups,
+                                addOffer: { presentedSheet = .addOffer($0) },
+                                exportApp: exportApp,
+                                deleteApp: deleteApp,
+                                shareProduct: shareNextCode,
+                                openApp: { presentedSheet = .appDetail($0.app) }
+                            )
+                        }
                     }
 
                     if let loadError = store.loadError {
@@ -58,12 +70,19 @@ struct ContentView: View {
             }
             .background(Color(.systemGroupedBackground))
             .tint(.primary)
-            .navigationTitle("Codes")
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    Button {
+                        presentedSheet = .addApp
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                    .accessibilityLabel("Add App")
+
                     NavigationLink {
                         SettingsView(
                             store: store,
+                            overviewMode: overviewModeBinding,
                             exportAll: exportAll,
                             deleteSavedState: deleteSavedState
                         )
@@ -73,10 +92,49 @@ struct ContentView: View {
                     .accessibilityLabel("Settings")
                 }
             }
-            .sheet(item: $activityRequest) { request in
-                ActivityView(activityItems: request.activityItems) { completed in
-                    request.completion?(completed)
-                    activityRequest = nil
+            .sheet(item: $presentedSheet) { sheet in
+                switch sheet {
+                case .addApp:
+                    NavigationStack {
+                        AddAppView(store: store)
+                    }
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
+                case .addOffer(let app):
+                    NavigationStack {
+                        ImportView(store: store, selectedApp: app)
+                    }
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
+                case .appDetail(let app):
+                    if let appGroup = appGroup(for: app) {
+                        NavigationStack {
+                            AppDetailSheetView(
+                                appGroup: appGroup,
+                                addOffer: { presentedSheet = .addOffer(appGroup.app) },
+                                exportApp: { exportApp(appGroup.app) },
+                                deleteApp: {
+                                    deleteApp(appGroup.app)
+                                    presentedSheet = nil
+                                },
+                                shareProduct: shareNextCode,
+                                openProduct: { presentedSheet = .productDetail($0) }
+                            )
+                        }
+                        .presentationDetents([.large])
+                        .presentationDragIndicator(.visible)
+                    }
+                case .productDetail(let product):
+                    NavigationStack {
+                        productDetailView(for: product)
+                    }
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
+                case .activity(let request):
+                    ActivityView(activityItems: request.activityItems) { completed in
+                        request.completion?(completed)
+                        presentedSheet = nil
+                    }
                 }
             }
         }
@@ -88,13 +146,18 @@ struct ContentView: View {
             share: { code in share(code, from: product) },
             copy: { code in copy(code, from: product) },
             shareQRCode: { code in shareQRCode(code, from: product) },
-            shareWithRecipient: { code, recipientName, format in
-                share(code, from: product, recipientName: recipientName, format: format)
-            },
             export: { export(product) },
             updateProduct: updateProduct,
+            deleteProduct: {
+                deleteProduct($0)
+                presentedSheet = nil
+            },
             markUsed: markCodesUsed
         )
+    }
+
+    private func appGroup(for app: TrackedApp) -> AppProductGroup? {
+        appGroups.first { $0.app.id == app.id || $0.app.name.caseInsensitiveCompare(app.name) == .orderedSame }
     }
 
     private var overviewMode: OverviewMode {
@@ -111,7 +174,16 @@ struct ContentView: View {
     private func exportAll() {
         do {
             let url = try store.exportAllCSV()
-            activityRequest = ActivityRequest(activityItems: [url])
+            presentedSheet = .activity(ActivityRequest(activityItems: [url]))
+        } catch {
+            store.loadError = error.localizedDescription
+        }
+    }
+
+    private func exportApp(_ app: TrackedApp) {
+        do {
+            let url = try store.exportCSV(for: app)
+            presentedSheet = .activity(ActivityRequest(activityItems: [url]))
         } catch {
             store.loadError = error.localizedDescription
         }
@@ -125,35 +197,25 @@ struct ContentView: View {
         }
     }
 
+    private func deleteApp(_ app: TrackedApp) {
+        store.deleteApp(app)
+    }
+
     private func shareNextCode(from product: OfferProduct) {
         guard let code = product.nextCode else { return }
         share(code, from: product)
     }
 
     private func share(_ code: CodeEntry, from product: OfferProduct) {
-        share(code, from: product, recipientName: nil, format: .text)
+        shareText(code, from: product)
     }
 
-    private func share(
-        _ code: CodeEntry,
-        from product: OfferProduct,
-        recipientName: String?,
-        format: ShareFormat
-    ) {
-        switch format {
-        case .text:
-            shareText(code, from: product, recipientName: recipientName)
-        case .qrCard:
-            shareQRCode(code, from: product, recipientName: recipientName)
-        }
-    }
-
-    private func shareText(_ code: CodeEntry, from product: OfferProduct, recipientName: String?) {
-        activityRequest = ActivityRequest(activityItems: [product.shareText(for: code)]) { completed in
+    private func shareText(_ code: CodeEntry, from product: OfferProduct) {
+        presentedSheet = .activity(ActivityRequest(activityItems: [product.shareText(for: code)]) { completed in
             if completed {
-                store.markShared(code, from: product, recipientName: recipientName)
+                store.markShared(code, from: product)
             }
-        }
+        })
     }
 
     private func copy(_ code: CodeEntry, from product: OfferProduct) {
@@ -162,10 +224,6 @@ struct ContentView: View {
     }
 
     private func shareQRCode(_ code: CodeEntry, from product: OfferProduct) {
-        shareQRCode(code, from: product, recipientName: nil)
-    }
-
-    private func shareQRCode(_ code: CodeEntry, from product: OfferProduct, recipientName: String?) {
         Task {
             let appIcon = await appIconImage(for: product)
             let card = QRShareCardRenderer.makeCard(
@@ -175,11 +233,11 @@ struct ContentView: View {
             )
 
             await MainActor.run {
-                activityRequest = ActivityRequest(activityItems: [card]) { completed in
+                presentedSheet = .activity(ActivityRequest(activityItems: [card]) { completed in
                     if completed {
-                        store.markShared(code, from: product, recipientName: recipientName)
+                        store.markShared(code, from: product)
                     }
-                }
+                })
             }
         }
     }
@@ -194,8 +252,12 @@ struct ContentView: View {
         return UIImage(named: product.appIconName)
     }
 
-    private func updateProduct(_ product: OfferProduct, customName: String?, expiresAt: Date?) {
-        store.updateProduct(product, customName: customName, expiresAt: expiresAt)
+    private func updateProduct(_ product: OfferProduct, customName: String?, productType: String, expiresAt: Date?) {
+        store.updateProduct(product, customName: customName, productType: productType, expiresAt: expiresAt)
+    }
+
+    private func deleteProduct(_ product: OfferProduct) {
+        store.deleteProduct(product)
     }
 
     private func markCodesUsed(_ product: OfferProduct, count: Int) {
@@ -205,17 +267,21 @@ struct ContentView: View {
     private func export(_ product: OfferProduct) {
         do {
             let url = try store.exportCSV(for: product)
-            activityRequest = ActivityRequest(activityItems: [url])
+            presentedSheet = .activity(ActivityRequest(activityItems: [url]))
         } catch {
             store.loadError = error.localizedDescription
         }
     }
 }
 
-private struct AppGroupView<Destination: View>: View {
+private struct AppGroupView: View {
     let appGroup: AppProductGroup
+    let addOffer: () -> Void
+    let exportApp: (TrackedApp) -> Void
+    let deleteApp: (TrackedApp) -> Void
     let shareProduct: (OfferProduct) -> Void
-    let productDestination: (OfferProduct) -> Destination
+    let openProduct: (OfferProduct) -> Void
+    @State private var isConfirmingDelete = false
 
     private var activeProducts: [OfferProduct] {
         appGroup.products.filter { !$0.isExpired }
@@ -228,7 +294,12 @@ private struct AppGroupView<Destination: View>: View {
     var body: some View {
         LiquidGlassContainer(spacing: 14) {
             VStack(spacing: 0) {
-                AppSectionHeader(appGroup: appGroup)
+                AppSectionHeader(
+                    appGroup: appGroup,
+                    addOffer: addOffer,
+                    exportApp: { exportApp(appGroup.app) },
+                    deleteApp: { isConfirmingDelete = true }
+                )
 
                 Divider()
                     .padding(.leading, 68)
@@ -236,8 +307,13 @@ private struct AppGroupView<Destination: View>: View {
                 ProductRows(
                     products: activeProducts,
                     shareProduct: shareProduct,
-                    productDestination: productDestination
+                    openProduct: openProduct
                 )
+
+                if appGroup.totalCount == 0 {
+                    AddCodesRow(action: addOffer)
+                        .padding(.top, activeProducts.isEmpty ? 0 : 8)
+                }
 
                 if !expiredProducts.isEmpty {
                     Divider()
@@ -254,26 +330,34 @@ private struct AppGroupView<Destination: View>: View {
                     ProductRows(
                         products: expiredProducts,
                         shareProduct: shareProduct,
-                        productDestination: productDestination
+                        openProduct: openProduct
                     )
                 }
             }
             .liquidGlassSurface(cornerRadius: 26)
         }
+        .confirmationDialog("Delete \(appGroup.appName)?", isPresented: $isConfirmingDelete, titleVisibility: .visible) {
+            Button("Delete App", role: .destructive) {
+                deleteApp(appGroup.app)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This removes the app and all offers and codes saved for it.")
+        }
     }
 }
 
-private struct ProductRows<Destination: View>: View {
+private struct ProductRows: View {
     let products: [OfferProduct]
     let shareProduct: (OfferProduct) -> Void
-    let productDestination: (OfferProduct) -> Destination
+    let openProduct: (OfferProduct) -> Void
 
     var body: some View {
         VStack(spacing: 0) {
             ForEach(products) { product in
                 ProductNavigationRow(
                     product: product,
-                    destination: productDestination(product),
+                    open: { openProduct(product) },
                     share: { shareProduct(product) }
                 )
 
@@ -287,12 +371,22 @@ private struct ProductRows<Destination: View>: View {
 }
 
 private struct AppProductGroup: Identifiable {
-    let appName: String
-    let appIconName: String
-    let appIconURL: URL?
+    let app: TrackedApp
     let products: [OfferProduct]
 
-    var id: String { appName }
+    var id: String { app.id }
+    var appName: String { app.name }
+    var appIconName: String {
+        if app.iconName != "DefaultAppIcon" {
+            return app.iconName
+        }
+
+        return products.first { $0.appIconName != "DefaultAppIcon" }?.appIconName ?? app.iconName
+    }
+
+    var appIconURL: URL? {
+        app.iconURL ?? products.first(where: { $0.appIconURL != nil })?.appIconURL
+    }
 
     var remainingCount: Int {
         products.reduce(0) { $0 + $1.remainingCodes.count }
@@ -314,6 +408,29 @@ private struct ActivityRequest: Identifiable {
     }
 }
 
+private enum PresentedSheet: Identifiable {
+    case addApp
+    case addOffer(TrackedApp)
+    case appDetail(TrackedApp)
+    case productDetail(OfferProduct)
+    case activity(ActivityRequest)
+
+    var id: String {
+        switch self {
+        case .addApp:
+            "addApp"
+        case .addOffer(let app):
+            "addOffer-\(app.id)"
+        case .appDetail(let app):
+            "appDetail-\(app.id)"
+        case .productDetail(let product):
+            "productDetail-\(product.id)"
+        case .activity(let request):
+            request.id.uuidString
+        }
+    }
+}
+
 private enum OverviewMode: String, CaseIterable, Identifiable {
     case shelf
     case compact
@@ -330,9 +447,76 @@ private enum OverviewMode: String, CaseIterable, Identifiable {
     }
 }
 
-private enum ShareFormat {
-    case text
-    case qrCard
+private struct AddAppRow: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: "plus")
+                    .font(.headline.weight(.semibold))
+                    .frame(width: 40, height: 40)
+                    .background(.thinMaterial, in: Circle())
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Add App")
+                        .font(.headline.weight(.semibold))
+
+                    Text("Import codes for an app or offer.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .foregroundStyle(.primary)
+            .padding(16)
+            .contentShape(.rect)
+            .liquidGlassSurface(cornerRadius: 22)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Add App Row")
+    }
+}
+
+private struct AddCodesRow: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: "doc.badge.plus")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(width: 36, height: 36)
+                    .background(.thinMaterial, in: Circle())
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Add Codes")
+                        .font(.subheadline.weight(.semibold))
+
+                    Text("Create an offer or import a CSV.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .foregroundStyle(.primary)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Add Codes")
+    }
 }
 
 private struct DashboardCard: View {
@@ -414,25 +598,44 @@ private struct ViewModePicker: View {
     }
 }
 
-private struct CompactAppsView<Destination: View>: View {
+private struct CompactAppsView: View {
     let appGroups: [AppProductGroup]
+    let addOffer: (TrackedApp) -> Void
+    let exportApp: (TrackedApp) -> Void
+    let deleteApp: (TrackedApp) -> Void
     let shareProduct: (OfferProduct) -> Void
-    let productDestination: (OfferProduct) -> Destination
+    let openApp: (AppProductGroup) -> Void
+    @State private var appPendingDeletion: TrackedApp?
 
     var body: some View {
         LiquidGlassContainer(spacing: 14) {
             VStack(spacing: 0) {
                 ForEach(appGroups) { appGroup in
-                    NavigationLink {
-                        CompactAppDetailView(
-                            appGroup: appGroup,
-                            shareProduct: shareProduct,
-                            productDestination: productDestination
-                        )
+                    Button {
+                        openApp(appGroup)
                     } label: {
                         CompactAppRow(appGroup: appGroup)
                     }
                     .buttonStyle(.plain)
+                    .contextMenu {
+                        Button {
+                            addOffer(appGroup.app)
+                        } label: {
+                            Label("Add Codes", systemImage: "doc.badge.plus")
+                        }
+
+                        Button {
+                            exportApp(appGroup.app)
+                        } label: {
+                            Label("Export App", systemImage: "square.and.arrow.up")
+                        }
+
+                        Button(role: .destructive) {
+                            appPendingDeletion = appGroup.app
+                        } label: {
+                            Label("Delete App", systemImage: "trash")
+                        }
+                    }
 
                     if appGroup.id != appGroups.last?.id {
                         Divider()
@@ -441,6 +644,33 @@ private struct CompactAppsView<Destination: View>: View {
                 }
             }
             .liquidGlassSurface(cornerRadius: 26)
+        }
+        .confirmationDialog(
+            "Delete \(appPendingDeletion?.name ?? "App")?",
+            isPresented: isDeletingApp,
+            titleVisibility: .visible
+        ) {
+            Button("Delete App", role: .destructive) {
+                if let appPendingDeletion {
+                    deleteApp(appPendingDeletion)
+                }
+                appPendingDeletion = nil
+            }
+            Button("Cancel", role: .cancel) {
+                appPendingDeletion = nil
+            }
+        } message: {
+            Text("This removes the app and all offers and codes saved for it.")
+        }
+    }
+
+    private var isDeletingApp: Binding<Bool> {
+        Binding {
+            appPendingDeletion != nil
+        } set: { isPresented in
+            if !isPresented {
+                appPendingDeletion = nil
+            }
         }
     }
 }
@@ -483,10 +713,14 @@ private struct CompactAppRow: View {
     }
 }
 
-private struct CompactAppDetailView<Destination: View>: View {
+private struct AppDetailSheetView: View {
     let appGroup: AppProductGroup
+    let addOffer: () -> Void
+    let exportApp: () -> Void
+    let deleteApp: () -> Void
     let shareProduct: (OfferProduct) -> Void
-    let productDestination: (OfferProduct) -> Destination
+    let openProduct: (OfferProduct) -> Void
+    @State private var isConfirmingDelete = false
 
     private var activeProducts: [OfferProduct] {
         appGroup.products.filter { !$0.isExpired }
@@ -504,16 +738,21 @@ private struct CompactAppDetailView<Destination: View>: View {
                 ProductRows(
                     products: activeProducts,
                     shareProduct: shareProduct,
-                    productDestination: productDestination
+                    openProduct: openProduct
                 )
                 .liquidGlassSurface(cornerRadius: 24)
+
+                if appGroup.totalCount == 0 {
+                    AddCodesRow(action: addOffer)
+                        .liquidGlassSurface(cornerRadius: 22)
+                }
 
                 if !expiredProducts.isEmpty {
                     DetailSection(title: "Expired") {
                         ProductRows(
                             products: expiredProducts,
                             shareProduct: shareProduct,
-                            productDestination: productDestination
+                            openProduct: openProduct
                         )
                     }
                 }
@@ -524,6 +763,34 @@ private struct CompactAppDetailView<Destination: View>: View {
         .background(Color(.systemGroupedBackground))
         .navigationTitle(appGroup.appName)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button(action: addOffer) {
+                        Label("Add Codes", systemImage: "doc.badge.plus")
+                    }
+
+                    Button(action: exportApp) {
+                        Label("Export App", systemImage: "square.and.arrow.up")
+                    }
+
+                    Button(role: .destructive) {
+                        isConfirmingDelete = true
+                    } label: {
+                        Label("Delete App", systemImage: "trash")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+                .accessibilityLabel("App Actions")
+            }
+        }
+        .confirmationDialog("Delete \(appGroup.appName)?", isPresented: $isConfirmingDelete, titleVisibility: .visible) {
+            Button("Delete App", role: .destructive, action: deleteApp)
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This removes the app and all offers and codes saved for it.")
+        }
     }
 }
 
@@ -555,6 +822,9 @@ private struct AppSummaryHeader: View {
 
 private struct AppSectionHeader: View {
     let appGroup: AppProductGroup
+    let addOffer: () -> Void
+    let exportApp: () -> Void
+    let deleteApp: () -> Void
 
     var body: some View {
         HStack(spacing: 10) {
@@ -573,22 +843,40 @@ private struct AppSectionHeader: View {
             }
 
             Spacer()
+
+            Menu {
+                Button(action: addOffer) {
+                    Label("Add Codes", systemImage: "doc.badge.plus")
+                }
+
+                Button(action: exportApp) {
+                    Label("Export App", systemImage: "square.and.arrow.up")
+                }
+
+                Button(role: .destructive, action: deleteApp) {
+                    Label("Delete App", systemImage: "trash")
+                }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 36, height: 36)
+            }
+            .accessibilityLabel("App Actions")
         }
         .padding(16)
         .textCase(nil)
     }
 }
 
-private struct ProductNavigationRow<Destination: View>: View {
+private struct ProductNavigationRow: View {
     let product: OfferProduct
-    let destination: Destination
+    let open: () -> Void
     let share: () -> Void
 
     var body: some View {
         HStack(spacing: 10) {
-            NavigationLink {
-                destination
-            } label: {
+            Button(action: open) {
                 ProductRow(product: product)
             }
             .buttonStyle(.plain)
@@ -597,16 +885,21 @@ private struct ProductNavigationRow<Destination: View>: View {
             Button(action: share) {
                 Image(systemName: "square.and.arrow.up")
                     .font(.body.weight(.semibold))
-                    .frame(width: 46, height: 46)
+                    .frame(width: 40, height: 40)
+                    .background(Color(.secondarySystemGroupedBackground), in: Circle())
+                    .overlay {
+                        Circle()
+                            .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                    }
                     .contentShape(.circle)
             }
-            .liquidGlassButtonStyle()
+            .buttonStyle(.plain)
             .disabled(product.nextCode == nil || product.isExpired)
-            .foregroundStyle(product.nextCode == nil || product.isExpired ? .tertiary : .primary)
+            .foregroundStyle(product.nextCode == nil || product.isExpired ? Color.secondary.opacity(0.4) : Color.primary)
             .accessibilityLabel("Share \(product.productName) code")
         }
         .padding(.leading, 16)
-        .padding(.trailing, 10)
+        .padding(.trailing, 14)
         .padding(.vertical, 12)
     }
 }
@@ -691,89 +984,40 @@ private struct AppIconImage: View {
 
 private struct SettingsView: View {
     let store: CodeStore
+    @Binding var overviewMode: OverviewMode
     let exportAll: () -> Void
     let deleteSavedState: () -> Void
     @State private var isConfirmingDelete = false
     @AppStorage("appAppearance") private var appAppearanceRawValue = AppAppearance.system.rawValue
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 14) {
-                DetailSection(title: "Inventory") {
-                    VStack(spacing: 10) {
-                        LabeledContent("Apps", value: "\(uniqueAppCount)")
-                        LabeledContent("Products", value: "\(store.products.count)")
-                        LabeledContent("Remaining", value: "\(store.totalRemainingCount)")
-                        LabeledContent("Shared", value: "\(store.totalSharedCount)")
-                        LabeledContent("Total", value: "\(store.totalCodeCount)")
-                    }
-                    .monospacedDigit()
-                }
-
-                DetailSection(title: "Appearance") {
-                    VStack(spacing: 0) {
-                        ForEach(AppAppearance.allCases) { appearance in
-                            Button {
-                                appAppearanceRawValue = appearance.rawValue
-                            } label: {
-                                HStack(spacing: 12) {
-                                    Image(systemName: appearance.symbolName)
-                                        .frame(width: 24)
-
-                                    Text(appearance.title)
-
-                                    Spacer()
-
-                                    if appAppearance == appearance {
-                                        Image(systemName: "checkmark")
-                                            .font(.subheadline.weight(.semibold))
-                                    }
-                                }
-                                .foregroundStyle(.primary)
-                                .padding(.vertical, 10)
-                            }
-                            .buttonStyle(.plain)
-
-                            if appearance != AppAppearance.allCases.last {
-                                Divider()
-                                    .padding(.leading, 36)
-                            }
-                        }
+        Form {
+            Section {
+                Picker("Appearance", selection: $appAppearanceRawValue) {
+                    ForEach(AppAppearance.allCases) { appearance in
+                        Text(appearance.title).tag(appearance.rawValue)
                     }
                 }
 
-                DetailSection(title: "Manage") {
-                    VStack(spacing: 12) {
-                        NavigationLink {
-                            ImportView(store: store)
-                        } label: {
-                            Label("Import", systemImage: "square.and.arrow.down")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .liquidGlassButtonStyle()
-                        .controlSize(.large)
-
-                        Button(action: exportAll) {
-                            Label("Export", systemImage: "square.and.arrow.up")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .liquidGlassButtonStyle()
-                        .controlSize(.large)
-
-                        Button(role: .destructive) {
-                            isConfirmingDelete = true
-                        } label: {
-                            Label("Delete", systemImage: "trash")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .liquidGlassButtonStyle()
-                        .controlSize(.large)
-                    }
-                }
+                Toggle("Compact Layout", isOn: compactLayoutBinding)
             }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 14)
+
+            Section {
+                Button(action: exportAll) {
+                    Text("Export")
+                }
+
+                Button(role: .destructive) {
+                    isConfirmingDelete = true
+                } label: {
+                    Text("Delete Saved State")
+                }
+            } footer: {
+                Text("\(store.totalRemainingCount) remaining · \(store.totalSharedCount) shared")
+                    .monospacedDigit()
+            }
         }
+        .scrollContentBackground(.hidden)
         .background(Color(.systemGroupedBackground))
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
@@ -785,80 +1029,233 @@ private struct SettingsView: View {
         }
     }
 
-    private var uniqueAppCount: Int {
-        Set(store.products.map(\.appName)).count
+    private var compactLayoutBinding: Binding<Bool> {
+        Binding(
+            get: { overviewMode == .compact },
+            set: { overviewMode = $0 ? .compact : .shelf }
+        )
     }
 
-    private var appAppearance: AppAppearance {
-        AppAppearance(rawValue: appAppearanceRawValue) ?? .system
+}
+
+private struct AddAppView: View {
+    @Environment(\.dismiss) private var dismiss
+    let store: CodeStore
+    @State private var appName = ""
+    @State private var appSearchQuery = ""
+    @State private var appSearchResults: [AppStoreAppInfo] = []
+    @State private var appStoreURLString = ""
+    @State private var appStoreInfo: AppStoreAppInfo?
+    @State private var isSearchingAppStore = false
+    @State private var isLookingUpApp = false
+    @State private var isShowingManual = false
+    @State private var errorMessage: String?
+
+    var body: some View {
+        Form {
+            Section {
+                AppStoreSearchField(
+                    query: $appSearchQuery,
+                    isSearching: isSearchingAppStore,
+                    search: searchAppStore
+                )
+
+                if !appSearchResults.isEmpty {
+                    AppStoreSearchResultsList(
+                        results: appSearchResults,
+                        selectedApp: appStoreInfo,
+                        select: apply
+                    )
+                }
+
+                if let appStoreInfo, appSearchResults.isEmpty {
+                    AppStoreInfoPreview(info: appStoreInfo, showsSelection: true)
+                }
+
+                DisclosureGroup(isExpanded: $isShowingManual.animation()) {
+                    TextField("App name", text: $appName)
+                        .textContentType(.organizationName)
+
+                    TextField("App Store URL or ID", text: $appStoreURLString)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .keyboardType(.URL)
+
+                    Button {
+                        lookupAppStoreInfo()
+                    } label: {
+                        if isLookingUpApp {
+                            Label("Looking Up...", systemImage: "hourglass")
+                        } else {
+                            Label("Fetch App Info", systemImage: "magnifyingglass")
+                        }
+                    }
+                    .disabled(appStoreURLString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isLookingUpApp)
+                } label: {
+                    Label("Manual", systemImage: "keyboard")
+                }
+            } header: {
+                Text("App")
+            } footer: {
+                Text("Add the app first. Offers and code CSVs are added from the app card.")
+            }
+
+            if let errorMessage {
+                Section {
+                    Text(errorMessage)
+                        .foregroundStyle(.red)
+                }
+            }
+        }
+        .navigationTitle("Add App")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel") { dismiss() }
+            }
+
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Add") {
+                    store.addApp(
+                        name: resolvedAppName,
+                        iconURL: appStoreInfo?.iconURL,
+                        appStoreID: appStoreInfo?.appStoreID,
+                        appStoreURL: appStoreInfo?.appStoreURL,
+                        bundleID: appStoreInfo?.bundleID
+                    )
+                    dismiss()
+                }
+                .disabled(resolvedAppName.isEmpty)
+            }
+        }
+    }
+
+    private var resolvedAppName: String {
+        let trimmedAppName = appName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedAppName.isEmpty {
+            return trimmedAppName
+        }
+
+        return (appStoreInfo?.appName ?? appSearchQuery).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func searchAppStore() {
+        isSearchingAppStore = true
+        errorMessage = nil
+
+        Task {
+            do {
+                let results = try await AppStoreLookupService.search(for: appSearchQuery)
+                await MainActor.run {
+                    appSearchResults = results
+                    isSearchingAppStore = false
+                    if results.isEmpty {
+                        errorMessage = "No App Store apps matched that search."
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    errorMessage = error.localizedDescription
+                    isSearchingAppStore = false
+                }
+            }
+        }
+    }
+
+    private func lookupAppStoreInfo() {
+        isLookingUpApp = true
+        errorMessage = nil
+
+        Task {
+            do {
+                let info = try await AppStoreLookupService.lookup(from: appStoreURLString)
+                await MainActor.run {
+                    apply(appInfo: info)
+                    isLookingUpApp = false
+                }
+            } catch {
+                await MainActor.run {
+                    errorMessage = error.localizedDescription
+                    isLookingUpApp = false
+                }
+            }
+        }
+    }
+
+    private func apply(appInfo: AppStoreAppInfo) {
+        appStoreInfo = appInfo
+        appStoreURLString = appInfo.appStoreURL.absoluteString
+        appSearchQuery = appInfo.appName
+        appSearchResults = []
+        appName = appInfo.appName
+        errorMessage = nil
     }
 }
 
 private struct ImportView: View {
     @Environment(\.dismiss) private var dismiss
     let store: CodeStore
+    let selectedApp: TrackedApp?
     @State private var appName = ""
+    @State private var appSearchQuery = ""
+    @State private var appSearchResults: [AppStoreAppInfo] = []
     @State private var appStoreURLString = ""
     @State private var appStoreInfo: AppStoreAppInfo?
+    @State private var isSearchingAppStore = false
     @State private var isLookingUpApp = false
     @State private var productName = ""
     @State private var productID = ""
-    @State private var productType = ""
-    @State private var status = "Approved"
+    @State private var offerKind = OfferKind.iap
+    @State private var hasExpiry = false
+    @State private var expiresAt = Calendar.current.date(byAdding: .month, value: 1, to: Date()) ?? Date()
     @State private var parsedCodes: [CodeEntry] = []
     @State private var selectedFileName: String?
     @State private var skippedDuplicateCount = 0
     @State private var skippedInvalidCount = 0
     @State private var isImportingFile = false
+    @State private var isShowingManual = false
     @State private var errorMessage: String?
+
+    init(store: CodeStore, selectedApp: TrackedApp? = nil) {
+        self.store = store
+        self.selectedApp = selectedApp
+        _appName = State(initialValue: selectedApp?.name ?? "")
+        _appStoreURLString = State(initialValue: selectedApp?.appStoreURL?.absoluteString ?? "")
+    }
 
     var body: some View {
         Form {
             Section {
-                Button {
-                    isImportingFile = true
-                } label: {
-                    Label(selectedFileName ?? "Choose CSV", systemImage: "doc.badge.plus")
-                }
+                if let selectedApp {
+                    HStack(spacing: 12) {
+                        AppIconImage(name: selectedApp.iconName, url: selectedApp.iconURL, size: 40)
 
-                if let selectedFileName {
-                    LabeledContent("File", value: selectedFileName)
-                }
-
-                LabeledContent("Codes", value: "\(parsedCodes.count)")
-
-                if skippedDuplicateCount > 0 {
-                    LabeledContent("Duplicates Skipped", value: "\(skippedDuplicateCount)")
-                }
-
-                if skippedInvalidCount > 0 {
-                    LabeledContent("Rows Skipped", value: "\(skippedInvalidCount)")
-                }
-            } header: {
-                Text("1. CSV")
-            } footer: {
-                Text("Supports App Store Connect CSV files and exported files from this app.")
-            }
-
-            Section("2. App") {
-                TextField("App Store URL or ID", text: $appStoreURLString)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .keyboardType(.URL)
-
-                Button {
-                    lookupAppStoreInfo()
-                } label: {
-                    if isLookingUpApp {
-                        Label("Looking Up...", systemImage: "hourglass")
-                    } else {
-                        Label("Fetch App Info", systemImage: "magnifyingglass")
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(selectedApp.name)
+                                .font(.headline.weight(.semibold))
+                            Text("Adding codes")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
                     }
-                }
-                .disabled(appStoreURLString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isLookingUpApp)
+                    .padding(.vertical, 4)
+                } else {
+                AppStoreSearchField(
+                    query: $appSearchQuery,
+                    isSearching: isSearchingAppStore,
+                    search: searchAppStore
+                )
 
-                if let appStoreInfo {
-                    AppStoreInfoPreview(info: appStoreInfo)
+                if !appSearchResults.isEmpty {
+                    AppStoreSearchResultsList(
+                        results: appSearchResults,
+                        selectedApp: appStoreInfo,
+                        select: apply
+                    )
+                }
+
+                if let appStoreInfo, appSearchResults.isEmpty {
+                    AppStoreInfoPreview(info: appStoreInfo, showsSelection: true)
                 }
 
                 if !existingAppNames.isEmpty {
@@ -873,31 +1270,70 @@ private struct ImportView: View {
                     }
                 }
 
-                TextField("App name", text: $appName)
-                    .textContentType(.organizationName)
+                DisclosureGroup(isExpanded: $isShowingManual.animation()) {
+                    TextField("App name", text: $appName)
+                        .textContentType(.organizationName)
+
+                    TextField("App Store URL or ID", text: $appStoreURLString)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .keyboardType(.URL)
+
+                    Button {
+                        lookupAppStoreInfo()
+                    } label: {
+                        if isLookingUpApp {
+                            Label("Looking Up...", systemImage: "hourglass")
+                        } else {
+                            Label("Fetch App Info", systemImage: "magnifyingglass")
+                        }
+                    }
+                    .disabled(appStoreURLString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isLookingUpApp)
+                } label: {
+                    Label("Manual", systemImage: "keyboard")
+                }
+                }
+            } header: {
+                Text("App")
+            } footer: {
+                Text(selectedApp == nil ? "Choose the app these codes belong to." : "Offers and codes will be added to this app.")
             }
 
-            Section("3. Offer") {
+            Section("Offer") {
                 TextField("Offer name", text: $productName)
                 TextField("Product ID", text: $productID)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
-                TextField("Type", text: $productType)
-                TextField("Status", text: $status)
+
+                OfferKindSelection(selection: $offerKind)
+
+                ExpirationPicker(hasExpiry: $hasExpiry, expiresAt: $expiresAt)
             }
 
-            if !parsedCodes.isEmpty {
-                Section {
-                    LabeledContent("Ready to Import", value: "\(parsedCodes.count)")
-                    LabeledContent("First Code", value: redactedCode(parsedCodes[0].code))
-                    if parsedCodes.count > 1 {
-                        LabeledContent("Last Code", value: redactedCode(parsedCodes[parsedCodes.count - 1].code))
-                    }
-                } header: {
-                    Text("Review")
-                } footer: {
-                    Text("Codes are hidden by default after import; sharing or copying marks a code as used.")
+            Section {
+                Button {
+                    isImportingFile = true
+                } label: {
+                    Label(selectedFileName ?? "Choose CSV", systemImage: "doc.badge.plus")
                 }
+
+                LabeledContent("Codes", value: "\(parsedCodes.count)")
+
+                if let selectedFileName {
+                    LabeledContent("File", value: selectedFileName)
+                }
+
+                if skippedDuplicateCount > 0 {
+                    LabeledContent("Duplicates Skipped", value: "\(skippedDuplicateCount)")
+                }
+
+                if skippedInvalidCount > 0 {
+                    LabeledContent("Rows Skipped", value: "\(skippedInvalidCount)")
+                }
+            } header: {
+                Text("CSV")
+            } footer: {
+                Text("Optional. Supports App Store Connect CSV files and PromoKit exports. Codes stay hidden after import.")
             }
 
             if let errorMessage {
@@ -907,21 +1343,28 @@ private struct ImportView: View {
                 }
             }
         }
-        .navigationTitle("Import")
+        .navigationTitle("Add Codes")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel") {
+                    dismiss()
+                }
+            }
+
             ToolbarItem(placement: .confirmationAction) {
                 Button("Add") {
                     store.importProduct(
-                        appName: appName,
-                        appIconURL: appStoreInfo?.iconURL,
-                        appStoreID: appStoreInfo?.appStoreID,
-                        appStoreURL: appStoreInfo?.appStoreURL,
-                        appBundleID: appStoreInfo?.bundleID,
-                        productName: productName,
-                        productID: productID,
-                        productType: productType,
-                        status: status,
+                        appName: resolvedAppName,
+                        appIconName: selectedApp?.iconName ?? "DefaultAppIcon",
+                        appIconURL: selectedApp?.iconURL ?? appStoreInfo?.iconURL,
+                        appStoreID: selectedApp?.appStoreID ?? appStoreInfo?.appStoreID,
+                        appStoreURL: selectedApp?.appStoreURL ?? appStoreInfo?.appStoreURL,
+                        appBundleID: selectedApp?.bundleID ?? appStoreInfo?.bundleID,
+                        productName: productName.trimmingCharacters(in: .whitespacesAndNewlines),
+                        productID: resolvedProductID,
+                        productType: offerKind.title,
+                        expiresAt: hasExpiry ? expiresAt : nil,
                         codes: parsedCodes
                     )
                     dismiss()
@@ -939,15 +1382,58 @@ private struct ImportView: View {
     }
 
     private var canImport: Bool {
-        !appName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-            !productName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-            !productID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-            !productType.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-            !parsedCodes.isEmpty
+        !resolvedAppName.isEmpty &&
+            !productName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var resolvedAppName: String {
+        let trimmedAppName = appName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedAppName.isEmpty {
+            return trimmedAppName
+        }
+
+        return (appStoreInfo?.appName ?? appSearchQuery).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var resolvedProductID: String {
+        let trimmedProductID = productID.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedProductID.isEmpty {
+            return trimmedProductID
+        }
+
+        return productName
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
+            .joined(separator: "-")
     }
 
     private var existingAppNames: [String] {
-        Array(Set(store.products.map(\.appName))).sorted()
+        store.apps.map(\.name).sorted()
+    }
+
+    private func searchAppStore() {
+        isSearchingAppStore = true
+        errorMessage = nil
+
+        Task {
+            do {
+                let results = try await AppStoreLookupService.search(for: appSearchQuery)
+                await MainActor.run {
+                    appSearchResults = results
+                    isSearchingAppStore = false
+                    if results.isEmpty {
+                        errorMessage = "No App Store apps matched that search."
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    errorMessage = error.localizedDescription
+                    isSearchingAppStore = false
+                }
+            }
+        }
     }
 
     private func lookupAppStoreInfo() {
@@ -958,9 +1444,7 @@ private struct ImportView: View {
             do {
                 let info = try await AppStoreLookupService.lookup(from: appStoreURLString)
                 await MainActor.run {
-                    appStoreInfo = info
-                    appStoreURLString = info.appStoreURL.absoluteString
-                    appName = info.appName
+                    apply(appInfo: info)
                     isLookingUpApp = false
                 }
             } catch {
@@ -970,6 +1454,15 @@ private struct ImportView: View {
                 }
             }
         }
+    }
+
+    private func apply(appInfo: AppStoreAppInfo) {
+        appStoreInfo = appInfo
+        appStoreURLString = appInfo.appStoreURL.absoluteString
+        appSearchQuery = appInfo.appName
+        appSearchResults = []
+        appName = appInfo.appName
+        errorMessage = nil
     }
 
     private func handleFileImport(_ result: Result<[URL], Error>) {
@@ -1040,25 +1533,275 @@ private struct ImportView: View {
             productID = metadataProductID
         }
 
-        if productType.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-           let metadataProductType = metadata.productType {
-            productType = metadataProductType
+        if let metadataProductType = metadata.productType,
+           let metadataOfferKind = OfferKind(productType: metadataProductType) {
+            offerKind = metadataOfferKind
         }
 
-        if status.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-           let metadataStatus = metadata.status {
-            status = metadataStatus
+        if let metadataExpiresAt = metadata.expiresAt,
+           let metadataExpiryDate = Self.expiryDate(from: metadataExpiresAt) {
+            expiresAt = metadataExpiryDate
+            hasExpiry = true
         }
     }
 
-    private func redactedCode(_ code: String) -> String {
-        guard code.count > 8 else { return "••••" }
-        return "\(code.prefix(4))••••\(code.suffix(4))"
+    private static func expiryDate(from value: String) -> Date? {
+        if let date = ISO8601DateFormatter().date(from: value) {
+            return date
+        }
+
+        let dateOnlyFormatter = DateFormatter()
+        dateOnlyFormatter.locale = Locale(identifier: "en_US_POSIX")
+        dateOnlyFormatter.dateFormat = "yyyy-MM-dd"
+        if let date = dateOnlyFormatter.date(from: value) {
+            return date
+        }
+
+        let mediumFormatter = DateFormatter()
+        mediumFormatter.dateStyle = .medium
+        mediumFormatter.timeStyle = .none
+        return mediumFormatter.date(from: value)
+    }
+
+}
+
+private enum OfferKind: String, CaseIterable, Identifiable {
+    case iap
+    case subscriptionOneWeek
+    case subscriptionOneMonth
+    case subscriptionOneYear
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .iap:
+            "IAP"
+        case .subscriptionOneWeek:
+            "Subscription 1w"
+        case .subscriptionOneMonth:
+            "Subscription 1m"
+        case .subscriptionOneYear:
+            "Subscription 1y"
+        }
+    }
+
+    var shortTitle: String {
+        switch self {
+        case .iap:
+            "IAP"
+        case .subscriptionOneWeek:
+            "1 week"
+        case .subscriptionOneMonth:
+            "1 month"
+        case .subscriptionOneYear:
+            "1 year"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .iap:
+            "In-App Purchase"
+        case .subscriptionOneWeek, .subscriptionOneMonth, .subscriptionOneYear:
+            "Subscription"
+        }
+    }
+
+    var selectorTitle: String {
+        switch self {
+        case .iap:
+            "IAP"
+        case .subscriptionOneWeek:
+            "1w"
+        case .subscriptionOneMonth:
+            "1m"
+        case .subscriptionOneYear:
+            "1y"
+        }
+    }
+
+    var detailTitle: String {
+        switch self {
+        case .iap:
+            "In-App Purchase"
+        case .subscriptionOneWeek:
+            "Subscription, 1 week"
+        case .subscriptionOneMonth:
+            "Subscription, 1 month"
+        case .subscriptionOneYear:
+            "Subscription, 1 year"
+        }
+    }
+
+    init?(productType: String) {
+        let normalized = productType
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
+        if normalized.contains("week") || normalized == "1w" || normalized.contains("1 w") {
+            self = .subscriptionOneWeek
+        } else if normalized.contains("month") || normalized == "1m" || normalized.contains("1 m") {
+            self = .subscriptionOneMonth
+        } else if normalized.contains("year") || normalized == "1y" || normalized.contains("1 y") {
+            self = .subscriptionOneYear
+        } else if normalized.contains("subscription") {
+            self = .subscriptionOneMonth
+        } else if normalized.contains("iap") || normalized.contains("non-consumable") || normalized.contains("consumable") {
+            self = .iap
+        } else {
+            return nil
+        }
+    }
+}
+
+private struct OfferKindSelection: View {
+    @Binding var selection: OfferKind
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Type")
+                    .font(.subheadline.weight(.medium))
+
+                Spacer()
+
+                Text(selection.detailTitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Picker("Type", selection: $selection) {
+                ForEach(OfferKind.allCases) { kind in
+                    Text(kind.selectorTitle).tag(kind)
+                }
+            }
+            .pickerStyle(.segmented)
+        }
+        .padding(.vertical, 6)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+private struct ExpirationPicker: View {
+    @Binding var hasExpiry: Bool
+    @Binding var expiresAt: Date
+
+    var body: some View {
+        Group {
+            Toggle(isOn: expiryToggleBinding) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Expires")
+
+                    Text(hasExpiry ? Self.dateFormatter.string(from: expiresAt) : "None")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if hasExpiry {
+                DatePicker(
+                    "Expiration Date",
+                    selection: $expiresAt,
+                    displayedComponents: .date
+                )
+                .datePickerStyle(.compact)
+            }
+        }
+    }
+
+    private var expiryToggleBinding: Binding<Bool> {
+        Binding {
+            hasExpiry
+        } set: { newValue in
+            if newValue, !hasExpiry {
+                withAnimation {
+                    expiresAt = Calendar.current.date(byAdding: .month, value: 1, to: Date()) ?? Date()
+                    hasExpiry = true
+                }
+            } else {
+                withAnimation {
+                    hasExpiry = newValue
+                }
+            }
+        }
+    }
+
+    private static let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return formatter
+    }()
+}
+
+private struct AppStoreSearchField: View {
+    @Binding var query: String
+    let isSearching: Bool
+    let search: () -> Void
+
+    private var canSearch: Bool {
+        !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isSearching
+    }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+
+            TextField("Search App Store", text: $query)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .submitLabel(.search)
+                .onSubmit {
+                    if canSearch {
+                        search()
+                    }
+                }
+
+            if isSearching {
+                ProgressView()
+                    .controlSize(.small)
+            } else if !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Button("Search", action: search)
+                    .font(.subheadline.weight(.semibold))
+                    .disabled(!canSearch)
+            }
+        }
+    }
+}
+private struct AppStoreSearchResultsList: View {
+    let results: [AppStoreAppInfo]
+    let selectedApp: AppStoreAppInfo?
+    let select: (AppStoreAppInfo) -> Void
+
+    var body: some View {
+        ScrollView {
+            LazyVStack(spacing: 0) {
+                ForEach(results) { result in
+                    Button {
+                        select(result)
+                    } label: {
+                        AppStoreInfoPreview(info: result, showsSelection: selectedApp == result)
+                            .padding(.vertical, 10)
+                            .contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+
+                    if result.id != results.last?.id {
+                        Divider()
+                            .padding(.leading, 54)
+                    }
+                }
+            }
+        }
+        .frame(maxHeight: 260)
     }
 }
 
 private struct AppStoreInfoPreview: View {
     let info: AppStoreAppInfo
+    var showsSelection = false
 
     var body: some View {
         HStack(spacing: 12) {
@@ -1085,6 +1828,11 @@ private struct AppStoreInfoPreview: View {
             }
 
             Spacer()
+
+            if showsSelection {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+            }
         }
     }
 }
@@ -1094,11 +1842,12 @@ private struct ProductDetailView: View {
     let share: (CodeEntry) -> Void
     let copy: (CodeEntry) -> Void
     let shareQRCode: (CodeEntry) -> Void
-    let shareWithRecipient: (CodeEntry, String?, ShareFormat) -> Void
     let export: () -> Void
-    let updateProduct: (OfferProduct, String?, Date?) -> Void
+    let updateProduct: (OfferProduct, String?, String, Date?) -> Void
+    let deleteProduct: (OfferProduct) -> Void
     let markUsed: (OfferProduct, Int) -> Void
     @State private var sheet: ProductDetailSheet?
+    @State private var isConfirmingDelete = false
 
     var body: some View {
         ScrollView {
@@ -1144,24 +1893,12 @@ private struct ProductDetailView: View {
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 12)
                         } else if let nextCode = product.nextCode {
-                            HStack(spacing: 12) {
-                                Button {
-                                    copy(nextCode)
-                                } label: {
-                                    Label("Copy Code", systemImage: "doc.on.doc")
-                                        .frame(maxWidth: .infinity)
-                                }
-                                .liquidGlassButtonStyle(prominent: true)
-
-                                Button {
-                                    share(nextCode)
-                                } label: {
-                                    Label("Share Code", systemImage: "square.and.arrow.up")
-                                        .frame(maxWidth: .infinity)
-                                }
-                                .liquidGlassButtonStyle()
-                            }
-                            .controlSize(.large)
+                            OfferCodeActions(
+                                code: nextCode,
+                                copy: { copy(nextCode) },
+                                share: { share(nextCode) },
+                                shareQRCode: { shareQRCode(nextCode) }
+                            )
                         } else {
                             Label("No Codes Remaining", systemImage: "checkmark.circle")
                                 .font(.subheadline.weight(.medium))
@@ -1178,7 +1915,6 @@ private struct ProductDetailView: View {
 
                             LabeledContent("Product ID", value: product.productID)
                             LabeledContent("Type", value: product.productType)
-                            LabeledContent("Status", value: product.status)
                             if let expiresAt = product.expiresAt {
                                 LabeledContent("Expires", value: Self.expiryDateFormatter.string(from: expiresAt))
                             }
@@ -1211,24 +1947,14 @@ private struct ProductDetailView: View {
                     }
                     .disabled(product.remainingCodes.isEmpty)
 
-                    if let nextCode = product.nextCode {
-                        Button {
-                            sheet = .shareWithName
-                        } label: {
-                            Label("Share With Name", systemImage: "person.text.rectangle")
-                        }
-                        .disabled(product.isExpired)
-
-                        Button {
-                            shareQRCode(nextCode)
-                        } label: {
-                            Label("Share QR Card", systemImage: "qrcode")
-                        }
-                        .disabled(product.isExpired)
-                    }
-
                     Button(action: export) {
                         Label("Export CSV", systemImage: "doc.badge.arrow.up")
+                    }
+
+                    Button(role: .destructive) {
+                        isConfirmingDelete = true
+                    } label: {
+                        Label("Delete Offer", systemImage: "trash")
                     }
                 } label: {
                     Image(systemName: "ellipsis.circle")
@@ -1239,20 +1965,22 @@ private struct ProductDetailView: View {
         .sheet(item: $sheet) { sheet in
             switch sheet {
             case .edit:
-                ProductEditSheet(product: product) { customName, expiresAt in
-                    updateProduct(product, customName, expiresAt)
+                ProductEditSheet(product: product) { customName, productType, expiresAt in
+                    updateProduct(product, customName, productType, expiresAt)
                 }
             case .markUsed:
                 BulkMarkUsedSheet(product: product) { count in
                     markUsed(product, count)
                 }
-            case .shareWithName:
-                if let nextCode = product.nextCode {
-                    RecipientShareSheet(product: product) { recipientName, format in
-                        shareWithRecipient(nextCode, recipientName, format)
-                    }
-                }
             }
+        }
+        .confirmationDialog("Delete \(product.displayProductName)?", isPresented: $isConfirmingDelete, titleVisibility: .visible) {
+            Button("Delete Offer", role: .destructive) {
+                deleteProduct(product)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This removes the offer and all codes saved for it.")
         }
     }
 
@@ -1264,10 +1992,77 @@ private struct ProductDetailView: View {
     }()
 }
 
+private struct OfferCodeActions: View {
+    let code: CodeEntry
+    let copy: () -> Void
+    let share: () -> Void
+    let shareQRCode: () -> Void
+
+    private let columns = [
+        GridItem(.flexible(), spacing: 10),
+        GridItem(.flexible(), spacing: 10)
+    ]
+
+    var body: some View {
+        VStack(spacing: 10) {
+            Button(action: copy) {
+                HStack(spacing: 10) {
+                    Text(code.code)
+                        .font(.system(.body, design: .monospaced, weight: .semibold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+
+                    Spacer()
+
+                    Image(systemName: "doc.on.doc")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 14)
+                .frame(minHeight: 48)
+                .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                }
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Copy code \(code.code)")
+
+            LazyVGrid(columns: columns, spacing: 10) {
+                OfferActionButton(title: "Share Link", systemImage: "square.and.arrow.up", action: share, isProminent: true)
+                OfferActionButton(title: "Share QR Code", systemImage: "qrcode", action: shareQRCode)
+            }
+        }
+    }
+}
+
+private struct OfferActionButton: View {
+    let title: String
+    let systemImage: String
+    let action: () -> Void
+    var isProminent = false
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 7) {
+                Image(systemName: systemImage)
+                    .font(.headline.weight(.semibold))
+
+                Text(title)
+                    .font(.caption.weight(.semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+            }
+            .frame(maxWidth: .infinity, minHeight: 58)
+        }
+        .liquidGlassButtonStyle(prominent: isProminent)
+    }
+}
+
 private enum ProductDetailSheet: String, Identifiable {
     case edit
     case markUsed
-    case shareWithName
 
     var id: String { rawValue }
 }
@@ -1275,15 +2070,17 @@ private enum ProductDetailSheet: String, Identifiable {
 private struct ProductEditSheet: View {
     @Environment(\.dismiss) private var dismiss
     let product: OfferProduct
-    let save: (String?, Date?) -> Void
+    let save: (String?, String, Date?) -> Void
     @State private var name: String
+    @State private var offerKind: OfferKind
     @State private var hasExpiry: Bool
     @State private var expiresAt: Date
 
-    init(product: OfferProduct, save: @escaping (String?, Date?) -> Void) {
+    init(product: OfferProduct, save: @escaping (String?, String, Date?) -> Void) {
         self.product = product
         self.save = save
         _name = State(initialValue: product.displayProductName)
+        _offerKind = State(initialValue: OfferKind(productType: product.productType) ?? .iap)
         _hasExpiry = State(initialValue: product.expiresAt != nil)
         _expiresAt = State(initialValue: product.expiresAt ?? Date())
     }
@@ -1294,15 +2091,9 @@ private struct ProductEditSheet: View {
                 Section("Offer") {
                     TextField("Name", text: $name)
 
-                    Toggle("Expiry Date", isOn: $hasExpiry)
+                    OfferKindSelection(selection: $offerKind)
 
-                    if hasExpiry {
-                        DatePicker(
-                            "Expires",
-                            selection: $expiresAt,
-                            displayedComponents: .date
-                        )
-                    }
+                    ExpirationPicker(hasExpiry: $hasExpiry, expiresAt: $expiresAt)
                 }
             }
             .navigationTitle("Edit Offer")
@@ -1315,7 +2106,7 @@ private struct ProductEditSheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") {
                         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-                        save(trimmedName == product.productName ? nil : trimmedName, hasExpiry ? expiresAt : nil)
+                        save(trimmedName == product.productName ? nil : trimmedName, offerKind.title, hasExpiry ? expiresAt : nil)
                         dismiss()
                     }
                 }
@@ -1357,54 +2148,6 @@ private struct BulkMarkUsedSheet: View {
                 }
             }
         }
-    }
-}
-
-private struct RecipientShareSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    let product: OfferProduct
-    let share: (String?, ShareFormat) -> Void
-    @State private var recipientName = ""
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    TextField("Recipient name", text: $recipientName)
-                        .textContentType(.name)
-                } footer: {
-                    Text("The name is saved with the code and included when you export CSV.")
-                }
-
-                Section {
-                    Button {
-                        share(trimmedRecipientName, .text)
-                        dismiss()
-                    } label: {
-                        Label("Share Code", systemImage: "square.and.arrow.up")
-                    }
-
-                    Button {
-                        share(trimmedRecipientName, .qrCard)
-                        dismiss()
-                    } label: {
-                        Label("Share QR Card", systemImage: "qrcode")
-                    }
-                }
-            }
-            .navigationTitle(product.displayProductName)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-            }
-        }
-    }
-
-    private var trimmedRecipientName: String? {
-        let trimmedName = recipientName.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmedName.isEmpty ? nil : trimmedName
     }
 }
 

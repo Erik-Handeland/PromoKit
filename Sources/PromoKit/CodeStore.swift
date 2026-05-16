@@ -8,6 +8,7 @@ final class CodeStore {
     private let stateFileName = "code_inventory_state.json"
     private let legacyStateFileName = "offer_products.json"
 
+    private(set) var apps: [TrackedApp] = []
     private(set) var products: [OfferProduct] = []
     var loadError: String?
 
@@ -30,10 +31,12 @@ final class CodeStore {
         load()
     }
 
-    init(products: [OfferProduct], loadError: String? = nil, fileManager: FileManager = .default) {
+    init(apps: [TrackedApp] = [], products: [OfferProduct], loadError: String? = nil, fileManager: FileManager = .default) {
         self.fileManager = fileManager
+        self.apps = apps
         self.products = products
         self.loadError = loadError
+        ensureAppsExistForProducts()
     }
 
     func markShared(_ code: CodeEntry, from product: OfferProduct, recipientName: String? = nil) {
@@ -66,11 +69,17 @@ final class CodeStore {
         saveProducts()
     }
 
-    func updateProduct(_ product: OfferProduct, customName: String?, expiresAt: Date?) {
+    func updateProduct(_ product: OfferProduct, customName: String?, productType: String, expiresAt: Date?) {
         guard let productIndex = products.firstIndex(where: { $0.id == product.id }) else { return }
 
         products[productIndex].customName = customName?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+        products[productIndex].productType = productType.trimmingCharacters(in: .whitespacesAndNewlines)
         products[productIndex].expiresAt = expiresAt
+        saveProducts()
+    }
+
+    func deleteProduct(_ product: OfferProduct) {
+        products.removeAll { $0.id == product.id }
         saveProducts()
     }
 
@@ -84,9 +93,20 @@ final class CodeStore {
         productName: String,
         productID: String,
         productType: String,
-        status: String,
+        status: String = "Approved",
+        expiresAt: Date? = nil,
         codes: [CodeEntry]
     ) {
+        addApp(
+            name: appName,
+            iconName: appIconName,
+            iconURL: appIconURL,
+            appStoreID: appStoreID,
+            appStoreURL: appStoreURL,
+            bundleID: appBundleID,
+            savesImmediately: false
+        )
+
         let id = uniqueProductID(for: productID.nilIfEmpty ?? productName)
         let product = OfferProduct(
             id: id,
@@ -100,6 +120,7 @@ final class CodeStore {
             productID: productID.trimmingCharacters(in: .whitespacesAndNewlines),
             productType: productType.trimmingCharacters(in: .whitespacesAndNewlines),
             status: status.trimmingCharacters(in: .whitespacesAndNewlines),
+            expiresAt: expiresAt,
             codes: codes,
             totalCount: codes.count
         )
@@ -108,6 +129,49 @@ final class CodeStore {
         products.sort { lhs, rhs in
             lhs.appName == rhs.appName ? lhs.productName < rhs.productName : lhs.appName < rhs.appName
         }
+        saveProducts()
+    }
+
+    func addApp(
+        name: String,
+        iconName: String = "DefaultAppIcon",
+        iconURL: URL? = nil,
+        appStoreID: String? = nil,
+        appStoreURL: URL? = nil,
+        bundleID: String? = nil,
+        savesImmediately: Bool = true
+    ) {
+        let app = TrackedApp(
+            name: name,
+            iconName: iconName,
+            iconURL: iconURL,
+            appStoreID: appStoreID,
+            appStoreURL: appStoreURL,
+            bundleID: bundleID
+        )
+        guard !app.name.isEmpty else { return }
+
+        if let index = apps.firstIndex(where: { $0.id == app.id || $0.name.caseInsensitiveCompare(app.name) == .orderedSame }) {
+            apps[index].name = app.name
+            apps[index].iconName = app.iconName
+            apps[index].iconURL = app.iconURL ?? apps[index].iconURL
+            apps[index].appStoreID = app.appStoreID ?? apps[index].appStoreID
+            apps[index].appStoreURL = app.appStoreURL ?? apps[index].appStoreURL
+            apps[index].bundleID = app.bundleID ?? apps[index].bundleID
+        } else {
+            apps.append(app)
+        }
+
+        apps.sort { $0.name < $1.name }
+
+        if savesImmediately {
+            saveProducts()
+        }
+    }
+
+    func deleteApp(_ app: TrackedApp) {
+        apps.removeAll { $0.id == app.id || $0.name.caseInsensitiveCompare(app.name) == .orderedSame }
+        products.removeAll { $0.appName.caseInsensitiveCompare(app.name) == .orderedSame }
         saveProducts()
     }
 
@@ -183,12 +247,25 @@ final class CodeStore {
         return url
     }
 
+    func exportCSV(for app: TrackedApp) throws -> URL {
+        let exportsDirectory = fileManager.temporaryDirectory
+            .appending(path: "PromoKitExports", directoryHint: .isDirectory)
+        try fileManager.createDirectory(at: exportsDirectory, withIntermediateDirectories: true)
+
+        let url = exportsDirectory.appending(path: "\(app.id)-codes.csv")
+        let appProducts = products.filter { $0.appName.caseInsensitiveCompare(app.name) == .orderedSame }
+        let csv = productsCSV(apps: [app], products: appProducts)
+        try csv.write(to: url, atomically: true, encoding: .utf8)
+        return url
+    }
+
     func deleteSavedState() throws {
         for url in try [savedProductsURL(), legacyProductsURL()] where fileManager.fileExists(atPath: url.path) {
             try fileManager.removeItem(at: url)
         }
 
         products = try loadBundledProducts()
+        apps = products.uniqueTrackedApps()
         loadError = nil
         saveProducts()
     }
@@ -197,11 +274,13 @@ final class CodeStore {
         do {
             let bundledProducts = try loadBundledProducts()
 
-            if let savedProducts = try loadSavedProducts() {
-                products = bundledProducts.mergingSavedState(from: savedProducts)
+            if let savedState = try loadSavedState() {
+                products = bundledProducts.mergingSavedState(from: savedState.products)
+                apps = (savedState.apps + products.uniqueTrackedApps()).deduplicatedTrackedApps()
                 saveProducts()
             } else {
                 products = bundledProducts
+                apps = products.uniqueTrackedApps()
                 saveProducts()
             }
         } catch {
@@ -252,11 +331,17 @@ final class CodeStore {
         return parseCodes(from: contents)
     }
 
-    private func loadSavedProducts() throws -> [OfferProduct]? {
+    private func loadSavedState() throws -> InventoryState? {
         guard let url = try existingStateURL() else { return nil }
 
         let data = try Data(contentsOf: url)
-        return try JSONDecoder().decode([OfferProduct].self, from: data)
+        let decoder = JSONDecoder()
+        if let state = try? decoder.decode(InventoryState.self, from: data) {
+            return state
+        }
+
+        let legacyProducts = try decoder.decode([OfferProduct].self, from: data)
+        return InventoryState(apps: legacyProducts.uniqueTrackedApps(), products: legacyProducts)
     }
 
     private func saveProducts() {
@@ -268,11 +353,15 @@ final class CodeStore {
             )
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            let data = try encoder.encode(products)
+            let data = try encoder.encode(InventoryState(apps: apps, products: products))
             try data.write(to: url, options: .atomic)
         } catch {
             loadError = error.localizedDescription
         }
+    }
+
+    private func ensureAppsExistForProducts() {
+        apps = (apps + products.uniqueTrackedApps()).deduplicatedTrackedApps()
     }
 
     private func savedProductsURL() throws -> URL {
@@ -334,34 +423,73 @@ final class CodeStore {
     }
 
     private func allProductsCSV() -> String {
-        let rows = products.flatMap { product in
-            product.codes.map { code in
-                [
-                    product.appName,
-                    product.appStoreID ?? "",
-                    product.appStoreURL?.absoluteString ?? "",
-                    product.appBundleID ?? "",
-                    product.appIconURL?.absoluteString ?? "",
-                    product.productName,
-                    product.productID,
-                    product.displayProductName,
-                    product.productType,
-                    product.status,
-                    product.expiresAt.map(Self.exportDateFormatter.string(from:)) ?? "",
-                    code.code,
-                    code.redeemURL.absoluteString,
-                    code.isShared ? "true" : "false",
-                    code.sharedAt.map(Self.exportDateFormatter.string(from:)) ?? "",
-                    code.recipientName ?? ""
-                ]
-                .map(Self.csvEscaped)
-                .joined(separator: ",")
-            }
+        productsCSV(apps: apps, products: products)
+    }
+
+    private func productsCSV(apps: [TrackedApp], products: [OfferProduct]) -> String {
+        let productRows = products.flatMap { product in
+            let codes: [CodeEntry?] = product.codes.isEmpty ? [nil] : product.codes.map(Optional.some)
+
+            return codes.map { Self.csvRow(for: product, code: $0) }
         }
+        let productAppNames = Set(products.map { $0.appName.lowercased() })
+        let appRows = apps
+            .filter { !productAppNames.contains($0.name.lowercased()) }
+            .map(Self.csvRow(for:))
 
         return ([
             "app_name,app_store_id,app_store_url,app_bundle_id,app_icon_url,product_name,product_id,display_name,product_type,status,expires_at,code,redeem_url,is_shared,shared_at,recipient_name"
-        ] + rows).joined(separator: "\n")
+        ] + appRows + productRows).joined(separator: "\n")
+    }
+
+    private static func csvRow(for app: TrackedApp) -> String {
+        let fields: [String] = [
+            app.name,
+            app.appStoreID ?? "",
+            app.appStoreURL?.absoluteString ?? "",
+            app.bundleID ?? "",
+            app.iconURL?.absoluteString ?? "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            ""
+        ]
+        return fields.map(csvEscaped).joined(separator: ",")
+    }
+
+    private static func csvRow(for product: OfferProduct, code: CodeEntry?) -> String {
+        let expiresAt = product.expiresAt.map(exportDateFormatter.string(from:)) ?? ""
+        let codeValue = code?.code ?? ""
+        let redeemURL = code?.redeemURL.absoluteString ?? ""
+        let isShared = code.map { $0.isShared ? "true" : "false" } ?? ""
+        let sharedAt = code?.sharedAt.map(exportDateFormatter.string(from:)) ?? ""
+        let recipientName = code?.recipientName ?? ""
+        let fields: [String] = [
+            product.appName,
+            product.appStoreID ?? "",
+            product.appStoreURL?.absoluteString ?? "",
+            product.appBundleID ?? "",
+            product.appIconURL?.absoluteString ?? "",
+            product.productName,
+            product.productID,
+            product.displayProductName,
+            product.productType,
+            product.status,
+            expiresAt,
+            codeValue,
+            redeemURL,
+            isShared,
+            sharedAt,
+            recipientName
+        ]
+        return fields.map(csvEscaped).joined(separator: ",")
     }
 
     private static let exportDateFormatter: ISO8601DateFormatter = {
@@ -406,7 +534,41 @@ private extension String {
     }
 }
 
+private struct InventoryState: Codable {
+    var apps: [TrackedApp]
+    var products: [OfferProduct]
+}
+
+private extension [TrackedApp] {
+    func deduplicatedTrackedApps() -> [TrackedApp] {
+        var result: [TrackedApp] = []
+
+        for app in self where !app.name.isEmpty {
+            let nameKey = app.name.lowercased()
+            if let index = result.firstIndex(where: { $0.id == app.id || $0.name.lowercased() == nameKey }) {
+                result[index].iconName = richerIconName(existing: result[index].iconName, incoming: app.iconName)
+                result[index].iconURL = result[index].iconURL ?? app.iconURL
+                result[index].appStoreID = result[index].appStoreID ?? app.appStoreID
+                result[index].appStoreURL = result[index].appStoreURL ?? app.appStoreURL
+                result[index].bundleID = result[index].bundleID ?? app.bundleID
+            } else {
+                result.append(app)
+            }
+        }
+
+        return result.sorted { $0.name < $1.name }
+    }
+
+    private func richerIconName(existing: String, incoming: String) -> String {
+        existing == "DefaultAppIcon" ? incoming : existing
+    }
+}
+
 private extension [OfferProduct] {
+    func uniqueTrackedApps() -> [TrackedApp] {
+        map(TrackedApp.init(product:)).deduplicatedTrackedApps()
+    }
+
     func mergingSavedState(from savedProducts: [OfferProduct]) -> [OfferProduct] {
         let mergedBundledProducts = map { bundledProduct in
             guard let savedProduct = savedProducts.first(where: { $0.id == bundledProduct.id }) else {
@@ -494,6 +656,7 @@ struct CSVImportMetadata {
     var productID: String?
     var productType: String?
     var status: String?
+    var expiresAt: String?
 
     init(
         appName: String? = nil,
@@ -504,7 +667,8 @@ struct CSVImportMetadata {
         productName: String? = nil,
         productID: String? = nil,
         productType: String? = nil,
-        status: String? = nil
+        status: String? = nil,
+        expiresAt: String? = nil
     ) {
         self.appName = appName
         self.appStoreID = appStoreID
@@ -515,6 +679,7 @@ struct CSVImportMetadata {
         self.productID = productID
         self.productType = productType
         self.status = status
+        self.expiresAt = expiresAt
     }
 
     init(headers: [String: Int], row: [String]?) {
@@ -528,7 +693,8 @@ struct CSVImportMetadata {
                 ?? Self.value(named: "displayname", in: row, headers: headers),
             productID: Self.value(named: "productid", in: row, headers: headers),
             productType: Self.value(named: "producttype", in: row, headers: headers),
-            status: Self.value(named: "status", in: row, headers: headers)
+            status: Self.value(named: "status", in: row, headers: headers),
+            expiresAt: Self.value(named: "expiresat", in: row, headers: headers)
         )
     }
 
