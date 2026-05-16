@@ -118,6 +118,7 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					CB039359EB13C368D4A7E284 = {
+						DevelopmentTeam = 663B59VA28;
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -262,6 +263,7 @@
 				CODE_SIGN_ENTITLEMENTS = Sources/PromoKit/PromoKit.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 663B59VA28;
 				INFOPLIST_FILE = Sources/PromoKit/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "PromoKit: Offer Codes";
 				INFOPLIST_KEY_CFBundleName = "PromoKit: Offer Codes";
@@ -349,6 +351,7 @@
 				CODE_SIGN_ENTITLEMENTS = Sources/PromoKit/PromoKit.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 663B59VA28;
 				INFOPLIST_FILE = Sources/PromoKit/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "PromoKit: Offer Codes";
 				INFOPLIST_KEY_CFBundleName = "PromoKit: Offer Codes";
