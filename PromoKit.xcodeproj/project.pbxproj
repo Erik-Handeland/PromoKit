@@ -11,12 +11,12 @@
 		02AA11DF0D90DA24F2C6FEF7 /* AppAppearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB617DD7BC72E51253745603 /* AppAppearance.swift */; };
 		37E9E2FE155C5A7EB9084EF9 /* products.json in Resources */ = {isa = PBXBuildFile; fileRef = 8DE96B6DFE3424ACDBC99D63 /* products.json */; };
 		3B31343D40009A7630F7507D /* QRShareCardRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 531B446D10315F24271AC16B /* QRShareCardRenderer.swift */; };
-		3FB5A0865B29DADAF7E441C1 /* demo-premium-codes.csv in Resources */ = {isa = PBXBuildFile; fileRef = A9E7965AB006F5B13AB44520 /* demo-premium-codes.csv */; };
 		466C16ABAF2E57C9B7BD01C9 /* PromoKitApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBCB455927E11D7B759CF884 /* PromoKitApp.swift */; };
 		4C2598EDAA7E8AA1A4D81BB5 /* CodeStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5A930DBEB81C49DB678D119 /* CodeStore.swift */; };
 		5427FC04BE66A5C42673941F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F27383174E3F41FC63E23458 /* Assets.xcassets */; };
 		61F28EFF9E5B6324407F795D /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE3F688481B0103303E49C01 /* ContentView.swift */; };
 		879123B004C4D8923981375C /* ActivityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DB1CDAC3AE446B7F1653393 /* ActivityView.swift */; };
+		931E153BC8A316DB0773A1DF /* demo-premium-codes.csv in Resources */ = {isa = PBXBuildFile; fileRef = 8BB0BC0B15A0EC4CE30BCA3C /* demo-premium-codes.csv */; };
 		9B7B0E35AE5503C56868F873 /* AppStoreLookupService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8204426108ABE82866BE05F /* AppStoreLookupService.swift */; };
 		B28CCB774714D642F8747BAF /* ProductCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 526803F0006F8D364A92CA15 /* ProductCatalog.swift */; };
 /* End PBXBuildFile section */
@@ -26,15 +26,15 @@
 		531B446D10315F24271AC16B /* QRShareCardRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QRShareCardRenderer.swift; sourceTree = "<group>"; };
 		671278CE3384BF1826B4BC8A /* PromoKit.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = PromoKit.entitlements; sourceTree = "<group>"; };
 		7DB1CDAC3AE446B7F1653393 /* ActivityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityView.swift; sourceTree = "<group>"; };
+		8BB0BC0B15A0EC4CE30BCA3C /* demo-premium-codes.csv */ = {isa = PBXFileReference; path = "demo-premium-codes.csv"; sourceTree = "<group>"; };
 		8DE96B6DFE3424ACDBC99D63 /* products.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = products.json; sourceTree = "<group>"; };
 		A25D10A2D2EF6D9F1AE1EC98 /* OfferProduct.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfferProduct.swift; sourceTree = "<group>"; };
-		A9E7965AB006F5B13AB44520 /* demo-premium-codes.csv */ = {isa = PBXFileReference; lastKnownFileType = text; path = "demo-premium-codes.csv"; sourceTree = "<group>"; };
 		AB617DD7BC72E51253745603 /* AppAppearance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppAppearance.swift; sourceTree = "<group>"; };
 		C8204426108ABE82866BE05F /* AppStoreLookupService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStoreLookupService.swift; sourceTree = "<group>"; };
 		E665BA3418C660E0EF16F274 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		EBCB455927E11D7B759CF884 /* PromoKitApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromoKitApp.swift; sourceTree = "<group>"; };
 		F27383174E3F41FC63E23458 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		F29247DBF70CFA37370C4F67 /* PromoKit: Offer Codes.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "PromoKit: Offer Codes.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		F29247DBF70CFA37370C4F67 /* PromoKit.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = PromoKit.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		F5A930DBEB81C49DB678D119 /* CodeStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeStore.swift; sourceTree = "<group>"; };
 		FE3F688481B0103303E49C01 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -72,7 +72,7 @@
 		5A333DDB093F13657C0D8D89 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				F29247DBF70CFA37370C4F67 /* PromoKit: Offer Codes.app */,
+				F29247DBF70CFA37370C4F67 /* PromoKit.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -80,7 +80,7 @@
 		DEAC99FA7E11250A93FC90AF /* Resources */ = {
 			isa = PBXGroup;
 			children = (
-				A9E7965AB006F5B13AB44520 /* demo-premium-codes.csv */,
+				8BB0BC0B15A0EC4CE30BCA3C /* demo-premium-codes.csv */,
 				8DE96B6DFE3424ACDBC99D63 /* products.json */,
 			);
 			path = Resources;
@@ -104,8 +104,8 @@
 			name = PromoKit;
 			packageProductDependencies = (
 			);
-			productName = "PromoKit: Offer Codes";
-			productReference = F29247DBF70CFA37370C4F67 /* PromoKit: Offer Codes.app */;
+			productName = PromoKit;
+			productReference = F29247DBF70CFA37370C4F67 /* PromoKit.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -115,7 +115,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 2630;
+				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					CB039359EB13C368D4A7E284 = {
 						ProvisioningStyle = Automatic;
@@ -147,7 +147,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				5427FC04BE66A5C42673941F /* Assets.xcassets in Resources */,
-				3FB5A0865B29DADAF7E441C1 /* demo-premium-codes.csv in Resources */,
+				931E153BC8A316DB0773A1DF /* demo-premium-codes.csv in Resources */,
 				37E9E2FE155C5A7EB9084EF9 /* products.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -200,7 +200,6 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
@@ -233,10 +232,8 @@
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = 663B59VA28;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -252,7 +249,6 @@
 				PRODUCT_BUNDLE_IDENTIFIER = dev.sinuk.promokit;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.0;
@@ -267,14 +263,13 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				INFOPLIST_FILE = Sources/PromoKit/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = PromoKit;
+				INFOPLIST_KEY_CFBundleDisplayName = "PromoKit: Offer Codes";
 				INFOPLIST_KEY_CFBundleName = "PromoKit: Offer Codes";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = dev.sinuk.promokit;
 				PRODUCT_NAME = "PromoKit: Offer Codes";
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -285,7 +280,6 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
@@ -318,10 +312,8 @@
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = 663B59VA28;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -344,7 +336,6 @@
 				PRODUCT_BUNDLE_IDENTIFIER = dev.sinuk.promokit;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
@@ -359,14 +350,13 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				INFOPLIST_FILE = Sources/PromoKit/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = PromoKit;
+				INFOPLIST_KEY_CFBundleDisplayName = "PromoKit: Offer Codes";
 				INFOPLIST_KEY_CFBundleName = "PromoKit: Offer Codes";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = dev.sinuk.promokit;
 				PRODUCT_NAME = "PromoKit: Offer Codes";
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";

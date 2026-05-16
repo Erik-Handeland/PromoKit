@@ -33,3 +33,12 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_ENTITLEMENTS: Sources/PromoKit/PromoKit.entitlements
         CODE_SIGN_STYLE: Automatic
+schemes:
+  PromoKit:
+    build:
+      targets:
+        PromoKit: all
+    run:
+      config: Debug
+    archive:
+      config: Release
