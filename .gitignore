@@ -6,3 +6,4 @@ xcuserdata/
 LocalCodes/*.csv
 LocalCodes/*.json
 Sources/PromoKit/Resources/*.csv
+!Sources/PromoKit/Resources/demo-premium-codes.csv
