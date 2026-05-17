@@ -7,3 +7,10 @@ LocalCodes/*.csv
 LocalCodes/*.json
 Sources/PromoKit/Resources/*.csv
 !Sources/PromoKit/Resources/demo-premium-codes.csv
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+.env*
+!.env.example
