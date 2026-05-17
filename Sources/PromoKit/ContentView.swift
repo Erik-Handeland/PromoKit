@@ -1,6 +1,6 @@
 import SwiftUI
-import UniformTypeIdentifiers
 import UIKit
+import UniformTypeIdentifiers
 
 struct ContentView: View {
     let store: CodeStore

@@ -14,6 +14,19 @@ targets:
     platform: iOS
     sources:
       - Sources/PromoKit
+    preBuildScripts:
+      - name: SwiftLint
+        basedOnDependencyAnalysis: false
+        script: |
+          if command -v swiftlint >/dev/null 2>&1; then
+            swiftlint --config "$SRCROOT/.swiftlint.yml"
+          elif [ -x /opt/homebrew/bin/swiftlint ]; then
+            /opt/homebrew/bin/swiftlint --config "$SRCROOT/.swiftlint.yml"
+          elif [ -x /usr/local/bin/swiftlint ]; then
+            /usr/local/bin/swiftlint --config "$SRCROOT/.swiftlint.yml"
+          else
+            echo "warning: SwiftLint not installed. Install with: brew install swiftlint"
+          fi
     postBuildScripts:
       - name: Copy Local Code CSVs
         basedOnDependencyAnalysis: false
@@ -33,7 +46,7 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_ENTITLEMENTS: Sources/PromoKit/PromoKit.entitlements
         CODE_SIGN_STYLE: Automatic
-        DEVELOPMENT_TEAM: 663B59VA28
+        DEVELOPMENT_TEAM: ""
 schemes:
   PromoKit:
     build:

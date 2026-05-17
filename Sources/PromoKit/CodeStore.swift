@@ -438,6 +438,7 @@ final class CodeStore {
             .map(Self.csvRow(for:))
 
         return ([
+            // swiftlint:disable:next line_length
             "app_name,app_store_id,app_store_url,app_bundle_id,app_icon_url,product_name,product_id,display_name,product_type,status,expires_at,code,redeem_url,is_shared,shared_at,recipient_name"
         ] + appRows + productRows).joined(separator: "\n")
     }

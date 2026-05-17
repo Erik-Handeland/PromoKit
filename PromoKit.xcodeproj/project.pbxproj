@@ -93,6 +93,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 2E7B1D01A463D74BC0437212 /* Build configuration list for PBXNativeTarget "PromoKit" */;
 			buildPhases = (
+				7D23335D5A10EE0A632BA34D /* SwiftLint */,
 				D3A981EF1844994230CE2BA8 /* Sources */,
 				32FCA6E8D1985710F46DC0C1 /* Resources */,
 				E3256473B8DA7E63FED5A4F4 /* Copy Local Code CSVs */,
@@ -118,7 +119,7 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					CB039359EB13C368D4A7E284 = {
-						DevelopmentTeam = 663B59VA28;
+						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -156,6 +157,25 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		7D23335D5A10EE0A632BA34D /* SwiftLint */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = SwiftLint;
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "if command -v swiftlint >/dev/null 2>&1; then\n  swiftlint --config \"$SRCROOT/.swiftlint.yml\"\nelif [ -x /opt/homebrew/bin/swiftlint ]; then\n  /opt/homebrew/bin/swiftlint --config \"$SRCROOT/.swiftlint.yml\"\nelif [ -x /usr/local/bin/swiftlint ]; then\n  /usr/local/bin/swiftlint --config \"$SRCROOT/.swiftlint.yml\"\nelse\n  echo \"warning: SwiftLint not installed. Install with: brew install swiftlint\"\nfi\n";
+		};
 		E3256473B8DA7E63FED5A4F4 /* Copy Local Code CSVs */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
@@ -263,7 +283,7 @@
 				CODE_SIGN_ENTITLEMENTS = Sources/PromoKit/PromoKit.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = 663B59VA28;
+				DEVELOPMENT_TEAM = "";
 				INFOPLIST_FILE = Sources/PromoKit/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "PromoKit: Offer Codes";
 				INFOPLIST_KEY_CFBundleName = "PromoKit: Offer Codes";
@@ -351,7 +371,7 @@
 				CODE_SIGN_ENTITLEMENTS = Sources/PromoKit/PromoKit.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = 663B59VA28;
+				DEVELOPMENT_TEAM = "";
 				INFOPLIST_FILE = Sources/PromoKit/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "PromoKit: Offer Codes";
 				INFOPLIST_KEY_CFBundleName = "PromoKit: Offer Codes";
