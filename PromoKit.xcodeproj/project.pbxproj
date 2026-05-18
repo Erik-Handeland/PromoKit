@@ -26,7 +26,7 @@
 		531B446D10315F24271AC16B /* QRShareCardRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QRShareCardRenderer.swift; sourceTree = "<group>"; };
 		671278CE3384BF1826B4BC8A /* PromoKit.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = PromoKit.entitlements; sourceTree = "<group>"; };
 		7DB1CDAC3AE446B7F1653393 /* ActivityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityView.swift; sourceTree = "<group>"; };
-		8BB0BC0B15A0EC4CE30BCA3C /* demo-premium-codes.csv */ = {isa = PBXFileReference; path = "demo-premium-codes.csv"; sourceTree = "<group>"; };
+		8BB0BC0B15A0EC4CE30BCA3C /* demo-premium-codes.csv */ = {isa = PBXFileReference; lastKnownFileType = text; path = "demo-premium-codes.csv"; sourceTree = "<group>"; };
 		8DE96B6DFE3424ACDBC99D63 /* products.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = products.json; sourceTree = "<group>"; };
 		A25D10A2D2EF6D9F1AE1EC98 /* OfferProduct.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfferProduct.swift; sourceTree = "<group>"; };
 		AB617DD7BC72E51253745603 /* AppAppearance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppAppearance.swift; sourceTree = "<group>"; };
@@ -34,7 +34,7 @@
 		E665BA3418C660E0EF16F274 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		EBCB455927E11D7B759CF884 /* PromoKitApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromoKitApp.swift; sourceTree = "<group>"; };
 		F27383174E3F41FC63E23458 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		F29247DBF70CFA37370C4F67 /* PromoKit.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = PromoKit.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		F29247DBF70CFA37370C4F67 /* PromoKit: Offer Codes.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "PromoKit: Offer Codes.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		F5A930DBEB81C49DB678D119 /* CodeStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeStore.swift; sourceTree = "<group>"; };
 		FE3F688481B0103303E49C01 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -72,7 +72,7 @@
 		5A333DDB093F13657C0D8D89 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				F29247DBF70CFA37370C4F67 /* PromoKit.app */,
+				F29247DBF70CFA37370C4F67 /* PromoKit: Offer Codes.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -106,7 +106,7 @@
 			packageProductDependencies = (
 			);
 			productName = PromoKit;
-			productReference = F29247DBF70CFA37370C4F67 /* PromoKit.app */;
+			productReference = F29247DBF70CFA37370C4F67 /* PromoKit: Offer Codes.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -285,7 +285,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = "";
 				INFOPLIST_FILE = Sources/PromoKit/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "PromoKit: Offer Codes";
+				INFOPLIST_KEY_CFBundleDisplayName = PromoKit;
 				INFOPLIST_KEY_CFBundleName = "PromoKit: Offer Codes";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -373,7 +373,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = "";
 				INFOPLIST_FILE = Sources/PromoKit/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "PromoKit: Offer Codes";
+				INFOPLIST_KEY_CFBundleDisplayName = PromoKit;
 				INFOPLIST_KEY_CFBundleName = "PromoKit: Offer Codes";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				LD_RUNPATH_SEARCH_PATHS = (
