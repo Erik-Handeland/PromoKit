@@ -40,7 +40,7 @@ enum QRShareCardRenderer {
             if let qrCode = makeQRCode(from: code.redeemURL.absoluteString, sideLength: 620) {
                 let qrRect = CGRect(
                     x: cardRect.midX - 310,
-                    y: cardRect.minY + 360,
+                    y: cardRect.minY + 300,
                     width: 620,
                     height: 620
                 )
@@ -84,7 +84,7 @@ enum QRShareCardRenderer {
     }
 
     private static func drawFooter(product: OfferProduct, in cardRect: CGRect) {
-        let titleRect = CGRect(x: cardRect.minX + 72, y: cardRect.maxY - 226, width: cardRect.width - 144, height: 58)
+        let titleRect = CGRect(x: cardRect.minX + 72, y: cardRect.maxY - 206, width: cardRect.width - 144, height: 58)
         drawText(
             "Offer Code",
             in: titleRect,

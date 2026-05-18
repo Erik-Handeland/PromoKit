@@ -294,7 +294,7 @@
 				);
 				PRODUCT_NAME = "PromoKit: Offer Codes";
 				SDKROOT = iphoneos;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
 		};
@@ -382,7 +382,7 @@
 				);
 				PRODUCT_NAME = "PromoKit: Offer Codes";
 				SDKROOT = iphoneos;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;
 		};

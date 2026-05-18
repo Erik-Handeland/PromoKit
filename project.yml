@@ -47,6 +47,9 @@ targets:
         CODE_SIGN_ENTITLEMENTS: Sources/PromoKit/PromoKit.entitlements
         CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: ""
+        # iPhone only (1). 2 = iPad, "1,2" = universal. iPhone-only
+        # avoids needing iPad screenshots for App Store submission.
+        TARGETED_DEVICE_FAMILY: "1"
 schemes:
   PromoKit:
     build:

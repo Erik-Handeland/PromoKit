@@ -14,3 +14,11 @@ Sources/PromoKit/Resources/*.csv
 !.dev.vars.example
 .env*
 !.env.example
+
+# appstore/screenshots — Next.js generator
+appstore/screenshots/node_modules
+appstore/screenshots/.next
+appstore/screenshots/out
+# Captured app screenshots may contain private codes — keep out of git
+appstore/screenshots/public/screenshots/*.png
+appstore/screenshots/exports/
