@@ -39,7 +39,7 @@ targets:
     settings:
       base:
         INFOPLIST_FILE: Sources/PromoKit/Info.plist
-        INFOPLIST_KEY_CFBundleDisplayName: "PromoKit: Offer Codes"
+        INFOPLIST_KEY_CFBundleDisplayName: PromoKit
         INFOPLIST_KEY_CFBundleName: "PromoKit: Offer Codes"
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.developer-tools
         PRODUCT_NAME: "PromoKit: Offer Codes"

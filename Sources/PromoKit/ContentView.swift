@@ -84,7 +84,8 @@ struct ContentView: View {
                             store: store,
                             overviewMode: overviewModeBinding,
                             exportAll: exportAll,
-                            deleteSavedState: deleteSavedState
+                            deleteSavedState: deleteSavedState,
+                            restoreDemoData: restoreDemoData
                         )
                     } label: {
                         Image(systemName: "gearshape")
@@ -192,6 +193,14 @@ struct ContentView: View {
     private func deleteSavedState() {
         do {
             try store.deleteSavedState()
+        } catch {
+            store.loadError = error.localizedDescription
+        }
+    }
+
+    private func restoreDemoData() {
+        do {
+            try store.restoreDemoData()
         } catch {
             store.loadError = error.localizedDescription
         }
@@ -987,6 +996,7 @@ private struct SettingsView: View {
     @Binding var overviewMode: OverviewMode
     let exportAll: () -> Void
     let deleteSavedState: () -> Void
+    let restoreDemoData: () -> Void
     @State private var isConfirmingDelete = false
     @AppStorage("appAppearance") private var appAppearanceRawValue = AppAppearance.system.rawValue
 
@@ -1015,6 +1025,19 @@ private struct SettingsView: View {
             } footer: {
                 Text("\(store.totalRemainingCount) remaining · \(store.totalSharedCount) shared")
                     .monospacedDigit()
+            }
+
+            Section {
+                Button(action: restoreDemoData) {
+                    Label("Restore Demo App", systemImage: "arrow.clockwise")
+                }
+                .disabled(!store.canRestoreDemoData)
+            } footer: {
+                if store.canRestoreDemoData {
+                    Text("Adds the bundled Demo App and sample codes back to your inventory.")
+                } else {
+                    Text("The bundled Demo App is already available.")
+                }
             }
         }
         .scrollContentBackground(.hidden)

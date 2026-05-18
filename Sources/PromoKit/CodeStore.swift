@@ -11,6 +11,7 @@ final class CodeStore {
     private(set) var apps: [TrackedApp] = []
     private(set) var products: [OfferProduct] = []
     var loadError: String?
+    private var removedBundledProductIDs = Set<String>()
 
     var totalRemainingCount: Int {
         products.reduce(0) { $0 + $1.remainingCodes.count }
@@ -22,6 +23,14 @@ final class CodeStore {
 
     var totalSharedCount: Int {
         products.reduce(0) { $0 + $1.sharedCount }
+    }
+
+    var canRestoreDemoData: Bool {
+        guard let bundledProductIDs = try? bundledProductIDs(), !bundledProductIDs.isEmpty else { return false }
+
+        let currentProductIDs = Set(products.map(\.id))
+        return !removedBundledProductIDs.isDisjoint(with: bundledProductIDs)
+            || !bundledProductIDs.isSubset(of: currentProductIDs)
     }
 
     private let fileManager: FileManager
@@ -79,6 +88,10 @@ final class CodeStore {
     }
 
     func deleteProduct(_ product: OfferProduct) {
+        if let bundledProductIDs = try? bundledProductIDs(), bundledProductIDs.contains(product.id) {
+            removedBundledProductIDs.insert(product.id)
+        }
+
         products.removeAll { $0.id == product.id }
         saveProducts()
     }
@@ -170,6 +183,10 @@ final class CodeStore {
     }
 
     func deleteApp(_ app: TrackedApp) {
+        if let bundledProductIDs = try? bundledProductIDs(for: app) {
+            removedBundledProductIDs.formUnion(bundledProductIDs)
+        }
+
         apps.removeAll { $0.id == app.id || $0.name.caseInsensitiveCompare(app.name) == .orderedSame }
         products.removeAll { $0.appName.caseInsensitiveCompare(app.name) == .orderedSame }
         saveProducts()
@@ -264,8 +281,19 @@ final class CodeStore {
             try fileManager.removeItem(at: url)
         }
 
+        removedBundledProductIDs.removeAll()
         products = try loadBundledProducts()
         apps = products.uniqueTrackedApps()
+        loadError = nil
+        saveProducts()
+    }
+
+    func restoreDemoData() throws {
+        let bundledProducts = try loadBundledProducts()
+        let bundledProductIDs = Set(bundledProducts.map(\.id))
+        removedBundledProductIDs.subtract(bundledProductIDs)
+        products = bundledProducts.mergingSavedState(from: products)
+        apps = (apps + products.uniqueTrackedApps()).deduplicatedTrackedApps()
         loadError = nil
         saveProducts()
     }
@@ -275,10 +303,13 @@ final class CodeStore {
             let bundledProducts = try loadBundledProducts()
 
             if let savedState = try loadSavedState() {
-                products = bundledProducts.mergingSavedState(from: savedState.products)
+                removedBundledProductIDs = Set(savedState.removedBundledProductIDs)
+                let visibleBundledProducts = bundledProducts.filter { !removedBundledProductIDs.contains($0.id) }
+                products = visibleBundledProducts.mergingSavedState(from: savedState.products)
                 apps = (savedState.apps + products.uniqueTrackedApps()).deduplicatedTrackedApps()
                 saveProducts()
             } else {
+                removedBundledProductIDs.removeAll()
                 products = bundledProducts
                 apps = products.uniqueTrackedApps()
                 saveProducts()
@@ -322,6 +353,20 @@ final class CodeStore {
         return try JSONDecoder().decode(ProductCatalog.self, from: data)
     }
 
+    private func bundledProductIDs() throws -> Set<String> {
+        let catalog = try loadProductCatalog()
+        return Set(catalog.products.map(\.id))
+    }
+
+    private func bundledProductIDs(for app: TrackedApp) throws -> Set<String> {
+        let catalog = try loadProductCatalog()
+        return Set(
+            catalog.products
+                .filter { $0.appName.caseInsensitiveCompare(app.name) == .orderedSame }
+                .map(\.id)
+        )
+    }
+
     private func loadBundledCodes(named resourceName: String) throws -> [CodeEntry] {
         guard let url = Bundle.main.url(forResource: resourceName, withExtension: "csv") else {
             return []
@@ -353,7 +398,13 @@ final class CodeStore {
             )
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            let data = try encoder.encode(InventoryState(apps: apps, products: products))
+            let data = try encoder.encode(
+                InventoryState(
+                    apps: apps,
+                    products: products,
+                    removedBundledProductIDs: removedBundledProductIDs
+                )
+            )
             try data.write(to: url, options: .atomic)
         } catch {
             loadError = error.localizedDescription
@@ -538,6 +589,23 @@ private extension String {
 private struct InventoryState: Codable {
     var apps: [TrackedApp]
     var products: [OfferProduct]
+    var removedBundledProductIDs: [String]
+
+    init(apps: [TrackedApp], products: [OfferProduct], removedBundledProductIDs: Set<String> = []) {
+        self.apps = apps
+        self.products = products
+        self.removedBundledProductIDs = removedBundledProductIDs.sorted()
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        apps = try container.decode([TrackedApp].self, forKey: .apps)
+        products = try container.decode([OfferProduct].self, forKey: .products)
+        removedBundledProductIDs = try container.decodeIfPresent(
+            [String].self,
+            forKey: .removedBundledProductIDs
+        ) ?? []
+    }
 }
 
 private extension [TrackedApp] {
